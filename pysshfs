@@ -10,12 +10,14 @@
 #   Autofill + ssh-bind mount changes by Anil Gulecha
 #      http://www.gulecha.org
 #
+#   Profile support by CedricDV <Cedric.Viou@obs-nancay.fr>
+#
 #   This program is distributed under the terms of the GNU General Public License
 #   For more info see http://www.gnu.org/licenses/gpl.txt
 ##
 
 import pexpect
-import os
+import os, sys, glob, pwd
 import gtk
 
 ## print debug info ( True / False )
@@ -97,6 +99,9 @@ class UI:
         self.Mountpoint_entry.set_text(a_mntpnt)
         label.set_alignment(0, 1)
         table.attach(label, 0, 1, 5, 6)
+        label = gtk.Label('~/')
+        label.set_alignment(gtk.JUSTIFY_RIGHT, 1)
+        table.attach(label, 0, 1, 5, 6)
         table.attach(self.Mountpoint_entry, 1, 2, 5, 6)
 
         ## Port
@@ -125,25 +130,49 @@ class UI:
 
         ## Label
         label = gtk.Label()
-        label.set_markup("<b>Existing Mountpoints</b>")
+        label.set_markup("<b>Connection Profiles</b>")
         label.set_alignment(0, 1)
         table.attach(label, 0, 2, 9, 10)
 
+        ## Load connection
+        self.Connections_combo = gtk.combo_box_new_text()
+        self.Load_Bt = gtk.Button(stock=gtk.STOCK_OPEN)
+        self.Load_Bt.connect("clicked", self.load_Connection)
+        table.attach(self.Connections_combo, 0, 1, 10, 11)
+        table.attach(self.Load_Bt, 1, 2, 10, 11)
+
+        ## Save connection
+        self.NewConnection_entry = gtk.Entry()
+        self.NewConnection_entry.set_text('New connection')
+        self.Save_Bt = gtk.Button(stock=gtk.STOCK_SAVE)
+        self.Save_Bt.connect("clicked", self.save_Connection)
+        table.attach(self.NewConnection_entry, 0, 1, 11, 12)
+        table.attach(self.Save_Bt, 1, 2, 11, 12)
+
+        ## Separator
+        table.attach(gtk.HSeparator(), 0, 2, 12, 13)
+
+        ## Label
+        label = gtk.Label()
+        label.set_markup("<b>Existing Mountpoints</b>")
+        label.set_alignment(0, 1)
+        table.attach(label, 0, 2, 14, 15)
+
         ## Mounted_FS
         self.Mounted_fs_combo = gtk.combo_box_new_text()
-        table.attach(self.Mounted_fs_combo, 0, 2, 10, 11)
+        table.attach(self.Mounted_fs_combo, 0, 2, 15, 16)
 
         ## Open / Umount
         self.Open_Bt = gtk.Button(stock=gtk.STOCK_OPEN)
         self.Open_Bt.connect("clicked", self.open_mountpoint)
-        table.attach(self.Open_Bt, 0, 1, 11, 12)
+        table.attach(self.Open_Bt, 0, 1, 16, 17)
 
         self.Umount_Bt = gtk.Button(stock=gtk.STOCK_DISCONNECT)
         self.Umount_Bt.connect("clicked", self.umount_sshfs)
-        table.attach(self.Umount_Bt, 1, 2, 11, 12)
+        table.attach(self.Umount_Bt, 1, 2, 16, 17)
 
         ## Separator
-        table.attach(gtk.HSeparator(), 0, 2, 12, 13)
+        table.attach(gtk.HSeparator(), 0, 2, 17, 18)
 
         BoxMain.add(table)
         BoxBase.pack_start(BoxMain, True)
@@ -155,9 +184,36 @@ class UI:
         self.Host_entry.connect("changed", self.auto_mountpoint)
 
         self.update_mountedfs()
+        self.update_Connections()
 
         #Show main window frame and all content
         self.window.show_all()
+
+    def load_Connection(self, widget):
+        if self.Connections_combo.get_active_text() == 'Choose':
+            return
+
+        self.af.load_fill(self.Connections_combo.get_active_text())
+        (a_user, a_host, a_dir, a_mntpnt, a_port, a_open) = self.af.get_fill()
+
+        self.User_entry.set_text(a_user)
+        self.Host_entry.set_text(a_host)
+        self.Dir_entry.set_text(a_dir)
+        self.Mountpoint_entry.set_text(a_mntpnt)
+        self.Port_entry.set_text(a_port)
+        if a_open == "True":
+            self.OpenDir_checkbox.set_active(True)
+        else:
+            self.OpenDir_checkbox.set_active(False)
+        self.NewConnection_entry.set_text(self.Connections_combo.get_active_text())
+
+
+    def save_Connection(self, widget):
+        self.af.save_fill(self.User_entry.get_text(),self.Host_entry.get_text(),self.Dir_entry.get_text(), \
+                          self.Mountpoint_entry.get_text(), self.Port_entry.get_text(),str(self.OpenDir_checkbox.get_active()), \
+                          self.NewConnection_entry.get_text())
+        self.update_Connections()
+
 
     def auto_mountpoint(self, widget):
         User = self.User_entry.get_text()
@@ -191,6 +247,18 @@ class UI:
             ind += 1
         self.Mounted_fs_combo.set_active(0)
 
+    def update_Connections(self):
+        self.Connections_tab = self.get_Connections()
+        self.Connections_combo.get_model().clear()
+        self.Connections_combo.insert_text(0, 'Choose')
+
+        ind = 1
+        for Connection in self.Connections_tab:
+            connection_name = os.path.splitext(os.path.basename(Connection))[0]
+            self.Connections_combo.insert_text(ind, connection_name)
+            ind += 1
+        self.Connections_combo.set_active(0)
+
     def mount_sshfs(self, widget):
         User = self.User_entry.get_text()
         Password = self.Password_entry.get_text()
@@ -222,6 +290,14 @@ class UI:
                 os.system('xdg-open %s' % Mountpoint)
         else:
             show_msg(ret[1])
+
+    def get_Connections(self):
+        connections = glob.glob(os.path.join(os.getenv("HOME"), ".pysshfs", "*.essh"))
+        debug_info("Found those connections profiles:")
+        for connection in connections:
+            debug_info(connection)
+        return connections
+
 
     def run(self):
         gtk.main()
@@ -296,13 +372,13 @@ class autofill:
         self.a_mntpnt = ""
         self.a_port = "22"
         self.a_open = ""
-        ConfFile = os.path.join(os.getenv("HOME"), ".pysshfs", ProfileName)
+        ConfFile = os.path.join(os.getenv("HOME"), ".pysshfs", ProfileName) + ".essh"
         if os.path.exists(ConfFile):
             debug_info("Read conf file: " + ConfFile )
             self.load_fill()
 
     def load_fill(self, ProfileName="recently_used"):
-        ConfFile = os.path.join(os.getenv("HOME"), ".pysshfs", ProfileName)
+        ConfFile = os.path.join(os.getenv("HOME"), ".pysshfs", ProfileName) + ".essh"
         f = open(ConfFile);
         contents = f.read()
         f.close()
@@ -318,7 +394,7 @@ class autofill:
         return (self.a_user, self.a_host, self.a_dir, self.a_mntpnt, self.a_port, self.a_open)
 
     def save_fill(self, a_user, a_host, a_dir, a_mntpnt, a_port, a_open, ProfileName="recently_used"):
-        ConfFile = os.path.join(os.getenv("HOME"), ".pysshfs", ProfileName)
+        ConfFile = os.path.join(os.getenv("HOME"), ".pysshfs", ProfileName) + ".essh"
         debug_info("Write conf file: " + ConfFile )
         f = open(ConfFile,"w")
         f.write("\n".join((a_user, a_host, a_dir, a_mntpnt, a_port, a_open)))
