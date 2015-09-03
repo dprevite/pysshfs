@@ -214,7 +214,9 @@ class UI:
         self.update_mountedfs()
 
         if ret[0] == 0:
-            self.af.set_fill(self.User_entry.get_text(),self.Host_entry.get_text(),self.Dir_entry.get_text(), \
+            if not os.path.exists(os.path.join(os.getenv("HOME"), ".pysshfs")):
+                os.mkdir(os.path.join(os.getenv("HOME"), ".pysshfs"))
+            self.af.save_fill(self.User_entry.get_text(),self.Host_entry.get_text(),self.Dir_entry.get_text(), \
                              self.Mountpoint_entry.get_text(), self.Port_entry.get_text(),str(self.OpenDir_checkbox.get_active()))
             if self.OpenDir_checkbox.get_active():
                 os.system('xdg-open %s' % Mountpoint)
@@ -287,32 +289,38 @@ class sshFs:
             return (-3, 'ERROR: Unknown: ' + str(child.before))
 
 class autofill:
-    def __init__(self):
-        homedir = os.getenv("HOME")
+    def __init__(self, ProfileName="recently_used"):
         self.a_user = os.getenv('USER')
         self.a_host = ""
         self.a_dir = ""
         self.a_mntpnt = ""
         self.a_port = "22"
         self.a_open = ""
-        debug_info("Conf file: " + homedir + "/.pysshfs")
-        if os.path.exists(homedir + "/.pysshfs"):
-            f = open(homedir + "/.pysshfs");
-            contents = f.read()
-            f.close()
-            fields=contents.split("\n")
-            self.a_user = fields[0]
-            self.a_host = fields[1]
-            self.a_dir = fields[2]
-            self.a_mntpnt = fields[3]
-            self.a_port = fields[4]
-            self.a_open = fields[5]
+        ConfFile = os.path.join(os.getenv("HOME"), ".pysshfs", ProfileName)
+        if os.path.exists(ConfFile):
+            debug_info("Read conf file: " + ConfFile )
+            self.load_fill()
+
+    def load_fill(self, ProfileName="recently_used"):
+        ConfFile = os.path.join(os.getenv("HOME"), ".pysshfs", ProfileName)
+        f = open(ConfFile);
+        contents = f.read()
+        f.close()
+        fields=contents.split("\n")
+        self.a_user = fields[0]
+        self.a_host = fields[1]
+        self.a_dir = fields[2]
+        self.a_mntpnt = fields[3]
+        self.a_port = fields[4]
+        self.a_open = fields[5]
 
     def get_fill(self):
         return (self.a_user, self.a_host, self.a_dir, self.a_mntpnt, self.a_port, self.a_open)
 
-    def set_fill(self, a_user, a_host, a_dir, a_mntpnt, a_port, a_open):
-        f = open(os.getenv("HOME") + "/.pysshfs","w")
+    def save_fill(self, a_user, a_host, a_dir, a_mntpnt, a_port, a_open, ProfileName="recently_used"):
+        ConfFile = os.path.join(os.getenv("HOME"), ".pysshfs", ProfileName)
+        debug_info("Write conf file: " + ConfFile )
+        f = open(ConfFile,"w")
         f.write("\n".join((a_user, a_host, a_dir, a_mntpnt, a_port, a_open)))
         f.close() 
 
