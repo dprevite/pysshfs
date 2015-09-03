@@ -253,7 +253,11 @@ class sshFs:
         ## The second response sends the password.
         elif ret == 1:
             debug_info("The second response sends the password.")
-            child.sendline(Password)
+            if Password != "":
+                child.sendline(Password)
+            else:
+                debug_info("ssh auto connect")
+                return (0, str(child.after))
         # check for ssh bound mount - child exited and exitstatus=0
         elif child.isalive() == False:
             if child.exitstatus == 0:
