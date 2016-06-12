@@ -321,9 +321,9 @@ class sshFs:
 
         ## Get the first response.
         ret = child.expect (self.Initial_Responses, Timeout)
-        ## The first reponse is to accept the key.
+        ## The first response is to accept the key.
         if ret==0:
-            debug_info("The first reponse is to accept the key.")
+            debug_info("The first response is to accept the key.")
             #~ T = child.read(100)
             child.sendline("yes")
             child.expect('password:', Timeout)
